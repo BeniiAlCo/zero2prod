@@ -1,6 +1,10 @@
 use axum::{http::StatusCode, routing::get, Router};
 use std::net::SocketAddr;
 
+async fn health_check() -> StatusCode {
+    StatusCode::OK
+}
+
 #[tokio::main]
 pub async fn run() {
     let app = Router::new().route("/health_check", get(health_check));
@@ -11,8 +15,4 @@ pub async fn run() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-async fn health_check() -> StatusCode {
-    StatusCode::OK
 }

@@ -1,4 +1,4 @@
 #[tokio::main]
-async fn main() {
-    zero2prod::run();
+async fn main() -> hyper::Result<()> {
+    zero2prod::run()?.await
 }

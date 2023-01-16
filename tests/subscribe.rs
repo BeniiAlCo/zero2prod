@@ -1,4 +1,5 @@
-use zero2prod::startup::run;
+use tokio_postgres::NoTls;
+use zero2prod::{configuration::get_configuration, startup::run};
 
 fn spawn_app() -> String {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
@@ -14,6 +15,18 @@ fn spawn_app() -> String {
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let address = spawn_app();
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_string = configuration.database.connection_string();
+    let (query, connection) = tokio_postgres::connect(&connection_string, NoTls)
+        .await
+        .expect("Failed to connect to Postgres");
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
     let client = reqwest::Client::new();
 
     // Act
@@ -28,6 +41,20 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // Assert
     assert_eq!(200, response.status().as_u16());
+
+    let saved = query
+        .query_one(
+            "SELECT $1::TEXT, $2::TEXT FROM subscriptions",
+            &[&"email", &"name"],
+        )
+        .await
+        .expect("Failed to fetch saved subscriptions");
+
+    let saved_email: &str = saved.get("email");
+    let saved_name: &str = saved.get("name");
+
+    assert_eq!(saved_email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved_name, "le guin");
 }
 
 #[tokio::test]

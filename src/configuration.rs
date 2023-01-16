@@ -20,3 +20,12 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
 
     settings.try_deserialize()
 }
+
+impl DatabaseSettings {
+    pub fn connection_string(&self) -> String {
+        format!(
+            "user={} password={} host={} port={} dbname={}",
+            self.username, self.password, self.host, self.port, self.database_name
+        )
+    }
+}

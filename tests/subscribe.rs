@@ -1,4 +1,9 @@
-use zero2prod::{configuration::get_configuration, startup::run};
+use zero2prod::{configuration::get_configuration, configuration::DatabaseSettings, startup::run};
+
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
 
 pub struct TestApp {
     pub address: String,
@@ -10,13 +15,10 @@ async fn spawn_app() -> TestApp {
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let configuration = get_configuration().expect("Failed to read configuration.");
-    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        configuration.database.connection_string(),
-        tokio_postgres::NoTls,
-    )
-    .unwrap();
-    let pool = bb8::Pool::builder().build(manager).await.unwrap();
+    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    configuration.database.database_name = uuid::Uuid::new_v4().to_string();
+
+    let pool = configure_database(&configuration.database).await;
 
     let server = run(listener, pool.clone()).unwrap();
     let _ = tokio::spawn(server);
@@ -24,6 +26,69 @@ async fn spawn_app() -> TestApp {
         address,
         db_pool: pool,
     }
+}
+
+pub async fn configure_database(
+    config: &DatabaseSettings,
+) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
+    {
+        let (client, connection) = tokio_postgres::connect(
+            &config.connection_string_without_db(),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .expect("Failed to connect to database without using a name.");
+
+        // The connection object performs the actual communication with the database,
+        // so spawn it off to run on its own.
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        client
+            .execute(
+                format!(r#"CREATE DATABASE "{}";"#, &config.database_name).as_str(),
+                &[],
+            )
+            .await
+            .expect("Failetd to create a database.");
+    }
+
+    {
+        let (mut client, connection) =
+            tokio_postgres::connect(&config.connection_string(), tokio_postgres::NoTls)
+                .await
+                .unwrap();
+
+        // The connection object performs the actual communication with the database,
+        // so spawn it off to run on its own.
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        embedded::migrations::runner()
+            .run_async(&mut client)
+            .await
+            .unwrap();
+
+        println!("DB migrations finished!");
+    }
+
+    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
+        config.connection_string(),
+        tokio_postgres::NoTls,
+    )
+    .expect("Failed to connect to Postgres.");
+    let pool = bb8::Pool::builder()
+        .build(manager)
+        .await
+        .expect("Failed to create connection pool.");
+
+    pool
 }
 
 #[tokio::test]

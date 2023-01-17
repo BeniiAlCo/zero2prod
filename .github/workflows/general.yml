@@ -74,7 +74,7 @@ jobs:
       - name: Migrate database
         run: |
           sudo apt-get install libpq-dev -y
-          SKIP_DOCKER=false ./scripts/init_db.sh
+          SKIP_DOCKER=true ./scripts/init_db.sh
 
   fmt:
     name: Rustfmt

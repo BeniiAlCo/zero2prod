@@ -2,11 +2,9 @@ use axum::{
     extract::{Form, State},
     http::StatusCode,
 };
-use bb8::Pool;
-use bb8_postgres::PostgresConnectionManager;
 use chrono::Utc;
+use deadpool_postgres::Pool;
 use serde::Deserialize;
-use tokio_postgres::NoTls;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -16,7 +14,7 @@ pub struct Subscription {
 }
 
 pub async fn subscribe(
-    State(connection): State<Pool<PostgresConnectionManager<NoTls>>>,
+    State(connection): State<Pool>,
     Form(input): Form<Subscription>,
 ) -> StatusCode {
     match connection

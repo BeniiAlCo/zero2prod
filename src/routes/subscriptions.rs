@@ -2,9 +2,9 @@ use axum::{
     extract::{Form, State},
     http::StatusCode,
 };
-use chrono::Utc;
 use deadpool_postgres::Pool;
 use serde::Deserialize;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -25,7 +25,12 @@ pub async fn subscribe(
         .execute(
             "INSERT INTO Subscriptions (id, email, name, subscribed_at) 
         VALUES ($1, $2, $3, $4)",
-            &[&Uuid::new_v4(), &input.email, &input.name, &Utc::now()],
+            &[
+                &Uuid::new_v4(),
+                &input.email,
+                &input.name,
+                &OffsetDateTime::now_utc(),
+            ],
         )
         .await
     {

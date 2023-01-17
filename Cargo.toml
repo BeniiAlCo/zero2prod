@@ -14,14 +14,14 @@ name = "zero2prod"
 
 [dependencies]
 axum = "0.6.2"
-chrono = "0.4.23"
 config = "0.13.3"
 deadpool-postgres = "0.10.3"
 hyper = "0.14.23"
 refinery = { version = "0.8.7", features = ["tokio-postgres"] }
 serde = { version = "1.0.152", features = ["derive"] }
+time = "0.3.17"
 tokio = { version = "1.24.1", features = ["full"] }
-tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4", "with-uuid-1"] }
+tokio-postgres = { version = "0.7.7", features = ["with-uuid-1", "with-time-0_3"] }
 uuid = { version = "1.2.2", features = ["v4"] }
 
 [dev-dependencies]

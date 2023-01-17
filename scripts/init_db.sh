@@ -30,7 +30,7 @@ if [ "$SKIP_DOCKER" = false ]; then
 		postgres -N 1000
 fi
 
-export PGPPASSWORD="${DB_PASSWORD}"
+export PGPASSWORD="${DB_PASSWORD}"
 until psql -h "localhost" -U "${DB_USER}" -p "${DB_PORT}" -d "postgres" -c '\q'; do 
 	>&2 echo "Postgres is still unavaliable - sleeping"
 	sleep 1

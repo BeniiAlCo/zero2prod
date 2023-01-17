@@ -68,7 +68,7 @@ jobs:
           command: install 
           args: >
             refinery_cli
-            --forced
+            --force
             --version=${{ env.REFINERY_VERSION }}
             --locked
       - name: Migrate database

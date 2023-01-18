@@ -6,6 +6,13 @@ use zero2prod::startup::run;
 
 #[tokio::main]
 async fn main() -> hyper::Result<()> {
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::INFO)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Setting default subscriber failed.");
+
     let configuration = get_configuration().expect("Failed to read configuration.");
     let address = format!("127.0.0.1:{}", configuration.application_port);
 

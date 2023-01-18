@@ -10,8 +10,6 @@ pub fn run(
     listener: TcpListener,
     connection: deadpool_postgres::Pool,
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
-    tracing_subscriber::fmt().init();
-
     let app = axum::Router::new()
         .route("/health_check", get(health_check))
         .route("/subscribe", post(subscribe))

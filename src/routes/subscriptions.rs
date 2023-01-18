@@ -17,6 +17,8 @@ pub async fn subscribe(
     State(connection): State<Pool>,
     Form(input): Form<Subscription>,
 ) -> StatusCode {
+    tracing::info!("Saving new subscriber details in the database.");
+
     match connection
         .get()
         .await
@@ -34,9 +36,12 @@ pub async fn subscribe(
         )
         .await
     {
-        Ok(_) => StatusCode::OK,
+        Ok(_) => {
+            tracing::info!("New subscriber details have been saved.");
+            StatusCode::OK
+        }
         Err(e) => {
-            eprintln!("Failed to execute query: {}", e);
+            tracing::error!("Failed to execute query: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }

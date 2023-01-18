@@ -2,7 +2,7 @@ use zero2prod::{configuration::get_configuration, startup::run};
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: deadpool_postgres::Pool,
+    pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 }
 
 async fn spawn_app() -> TestApp {
@@ -12,22 +12,12 @@ async fn spawn_app() -> TestApp {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let mut pool_cfg = deadpool_postgres::Config::new();
-    pool_cfg.host = Some(configuration.database.host.to_string());
-    pool_cfg.user = Some(configuration.database.username.to_string());
-    pool_cfg.password = Some(configuration.database.password.to_string());
-    pool_cfg.dbname = Some(configuration.database.database_name.to_string());
-    pool_cfg.port = Some(configuration.database.port);
-
-    pool_cfg.manager = Some(deadpool_postgres::ManagerConfig {
-        recycling_method: deadpool_postgres::RecyclingMethod::Fast,
-    });
-    let pool = pool_cfg
-        .create_pool(
-            Some(deadpool_postgres::Runtime::Tokio1),
-            tokio_postgres::NoTls,
-        )
-        .unwrap();
+    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
+        configuration.database.connection_string(),
+        tokio_postgres::NoTls,
+    )
+    .unwrap();
+    let pool = bb8::Pool::builder().build(manager).await.unwrap();
 
     let server = run(listener, pool.clone()).unwrap();
     let _ = tokio::spawn(server);

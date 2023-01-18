@@ -1,32 +1,30 @@
-use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 use std::net::TcpListener;
 use tokio_postgres::NoTls;
+use tracing::subscriber::set_global_default;
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 use zero2prod::configuration::get_configuration;
 use zero2prod::startup::run;
 
 #[tokio::main]
 async fn main() -> hyper::Result<()> {
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::INFO)
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Setting default subscriber failed.");
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let formatting_layer = BunyanFormattingLayer::new("zero2prod".into(), std::io::stdout);
+    let subscriber = Registry::default()
+        .with(env_filter)
+        .with(JsonStorageLayer)
+        .with(formatting_layer);
+    set_global_default(subscriber).expect("Failed to set subscriber.");
 
     let configuration = get_configuration().expect("Failed to read configuration.");
     let address = format!("127.0.0.1:{}", configuration.application_port);
 
-    let mut pool_cfg = Config::new();
-    pool_cfg.host = Some(configuration.database.host.to_string());
-    pool_cfg.user = Some(configuration.database.username.to_string());
-    pool_cfg.password = Some(configuration.database.password.to_string());
-    pool_cfg.dbname = Some(configuration.database.database_name.to_string());
-    pool_cfg.port = Some(configuration.database.port);
-
-    pool_cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    let pool = pool_cfg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
+    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
+        configuration.database.connection_string(),
+        NoTls,
+    )
+    .unwrap();
+    let pool = bb8::Pool::builder().build(manager).await.unwrap();
 
     let listener =
         TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));

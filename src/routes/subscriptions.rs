@@ -2,9 +2,10 @@ use axum::{
     extract::{Form, State},
     http::StatusCode,
 };
-use deadpool_postgres::Pool;
 use serde::Deserialize;
 use time::OffsetDateTime;
+use tracing::instrument;
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -13,17 +14,37 @@ pub struct Subscription {
     email: String,
 }
 
+#[instrument(
+    name = "Adding a new subscriber",
+    skip_all,
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %input.email, 
+        subscriber_name = %input.name), 
+    level = "info"
+)]
 pub async fn subscribe(
-    State(connection): State<Pool>,
+    State(connection): State<
+        bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    >,
     Form(input): Form<Subscription>,
 ) -> StatusCode {
-    tracing::info!("Saving new subscriber details in the database.");
+    let connection_span =
+        tracing::span!(tracing::Level::INFO, "Getting connection to the database.");
 
-    match connection
+    let query_span = tracing::span!(
+        tracing::Level::INFO,
+        "Saving new subscriber details in the database."
+    );
+
+    let conn = connection
         .get()
+        .in_current_span()
+        .instrument(connection_span)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-        .unwrap()
+        .expect("Failed to establish connection to database.");
+
+    match conn
         .execute(
             "INSERT INTO Subscriptions (id, email, name, subscribed_at) 
         VALUES ($1, $2, $3, $4)",
@@ -34,12 +55,10 @@ pub async fn subscribe(
                 &OffsetDateTime::now_utc(),
             ],
         )
+        .instrument(query_span)
         .await
     {
-        Ok(_) => {
-            tracing::info!("New subscriber details have been saved.");
-            StatusCode::OK
-        }
+        Ok(_) => StatusCode::OK,
         Err(e) => {
             tracing::error!("Failed to execute query: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR

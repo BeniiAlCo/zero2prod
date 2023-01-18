@@ -7,7 +7,7 @@ mod embedded {
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: deadpool_postgres::Pool,
+    pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 }
 
 async fn spawn_app() -> TestApp {
@@ -28,7 +28,9 @@ async fn spawn_app() -> TestApp {
     }
 }
 
-pub async fn configure_database(config: &DatabaseSettings) -> deadpool_postgres::Pool {
+pub async fn configure_database(
+    config: &DatabaseSettings,
+) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
     {
         let (client, connection) = tokio_postgres::connect(
             &config.connection_string_without_db(),
@@ -37,8 +39,6 @@ pub async fn configure_database(config: &DatabaseSettings) -> deadpool_postgres:
         .await
         .expect("Failed to connect to database without using a name.");
 
-        // The connection object performs the actual communication with the database,
-        // so spawn it off to run on its own.
         tokio::spawn(async move {
             if let Err(e) = connection.await {
                 eprintln!("connection error: {}", e);
@@ -60,8 +60,6 @@ pub async fn configure_database(config: &DatabaseSettings) -> deadpool_postgres:
                 .await
                 .unwrap();
 
-        // The connection object performs the actual communication with the database,
-        // so spawn it off to run on its own.
         tokio::spawn(async move {
             if let Err(e) = connection.await {
                 eprintln!("connection error: {}", e);
@@ -76,23 +74,17 @@ pub async fn configure_database(config: &DatabaseSettings) -> deadpool_postgres:
         println!("DB migrations finished!");
     }
 
-    let mut pool_cfg = deadpool_postgres::Config::new();
-    pool_cfg.host = Some(config.host.to_string());
-    pool_cfg.user = Some(config.username.to_string());
-    pool_cfg.password = Some(config.password.to_string());
-    pool_cfg.dbname = Some(config.database_name.to_string());
-    pool_cfg.port = Some(config.port);
+    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
+        config.connection_string(),
+        tokio_postgres::NoTls,
+    )
+    .expect("Failed to connect to Postgres.");
+    let pool = bb8::Pool::builder()
+        .build(manager)
+        .await
+        .expect("Failed to create connection pool.");
 
-    pool_cfg.manager = Some(deadpool_postgres::ManagerConfig {
-        recycling_method: deadpool_postgres::RecyclingMethod::Fast,
-    });
-
-    pool_cfg
-        .create_pool(
-            Some(deadpool_postgres::Runtime::Tokio1),
-            tokio_postgres::NoTls,
-        )
-        .unwrap()
+    pool
 }
 
 #[tokio::test]

@@ -1,24 +1,16 @@
+use crate::routes::{health_check, subscribe};
 use axum::{routing, routing::get, routing::post};
 use hyper::server::conn;
 use std::net::TcpListener;
-use tower_http::trace;
-use tracing::Level;
-
-use crate::routes::{health_check, subscribe};
 
 pub fn run(
     listener: TcpListener,
-    connection: deadpool_postgres::Pool,
+    connection: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
     let app = axum::Router::new()
         .route("/health_check", get(health_check))
         .route("/subscribe", post(subscribe))
-        .with_state(connection)
-        .layer(
-            trace::TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
-        );
+        .with_state(connection);
 
     tracing::info!(
         "listening on {:?}",

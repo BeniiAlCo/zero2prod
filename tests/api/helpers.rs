@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use std::sync::Once;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -56,11 +57,11 @@ async fn configure_database(
 ) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
     {
         let (client, connection) = tokio_postgres::connect(
-            &config.connection_string_without_db(),
+            config.connection_string_without_db().expose_secret(),
             tokio_postgres::NoTls,
         )
         .await
-        .expect("Failed to connect to database without using a name.");
+        .expect("Failed to establish connection to unnamed database.");
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -78,10 +79,12 @@ async fn configure_database(
     }
 
     {
-        let (mut client, connection) =
-            tokio_postgres::connect(&config.connection_string(), tokio_postgres::NoTls)
-                .await
-                .unwrap();
+        let (mut client, connection) = tokio_postgres::connect(
+            config.connection_string().expose_secret(),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .expect("Failed to establish connection to named database.");
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -98,10 +101,10 @@ async fn configure_database(
     }
 
     let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        config.connection_string(),
+        config.connection_string().expose_secret(),
         tokio_postgres::NoTls,
     )
-    .expect("Failed to connect to Postgres.");
+    .expect("Failed to establish connection to database.");
     let pool = bb8::Pool::builder()
         .build(manager)
         .await

@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use std::net::TcpListener;
 use tokio_postgres::NoTls;
 use zero2prod::{
@@ -15,11 +16,14 @@ async fn main() -> hyper::Result<()> {
     let address = format!("127.0.0.1:{}", configuration.application_port);
 
     let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        configuration.database.connection_string(),
+        configuration.database.connection_string().expose_secret(),
         NoTls,
     )
     .unwrap();
-    let pool = bb8::Pool::builder().build(manager).await.unwrap();
+    let pool = bb8::Pool::builder()
+        .build(manager)
+        .await
+        .expect("Failed to establish connection to database.");
 
     let listener =
         TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));

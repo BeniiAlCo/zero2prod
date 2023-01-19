@@ -1,8 +1,24 @@
-use zero2prod::{configuration::get_configuration, configuration::DatabaseSettings, startup::run};
+use std::sync::Once;
+use zero2prod::{
+    configuration::{get_configuration, DatabaseSettings},
+    startup::run,
+    telemetry::{get_subscriber, init_subscriber},
+};
 
-mod embedded {
-    use refinery::embed_migrations;
-    embed_migrations!("migrations");
+pub static TRACING: Once = Once::new();
+
+pub fn tracing_init() {
+    TRACING.call_once(|| {
+        let default_filter_level = "info".to_string();
+        let subscriber_name = "test".to_string();
+        if std::env::var("TEST_LOG").is_ok() {
+            let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+            init_subscriber(subscriber);
+        } else {
+            let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
+            init_subscriber(subscriber);
+        }
+    });
 }
 
 pub struct TestApp {
@@ -10,7 +26,9 @@ pub struct TestApp {
     pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 }
 
-async fn spawn_app() -> TestApp {
+pub async fn spawn_app() -> TestApp {
+    tracing_init();
+
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
@@ -28,7 +46,12 @@ async fn spawn_app() -> TestApp {
     }
 }
 
-pub async fn configure_database(
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
+
+async fn configure_database(
     config: &DatabaseSettings,
 ) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
     {
@@ -85,69 +108,4 @@ pub async fn configure_database(
         .expect("Failed to create connection pool.");
 
     pool
-}
-
-#[tokio::test]
-async fn subscribe_returns_a_200_for_valid_form_data() {
-    // Arrange
-    let app = spawn_app().await;
-    let client = reqwest::Client::new();
-
-    // Act
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    let response = client
-        .post(format!("{}/subscribe", app.address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect("Failed to execute request");
-
-    // Assert
-    assert_eq!(200, response.status().as_u16());
-
-    let saved = app
-        .db_pool
-        .get()
-        .await
-        .unwrap()
-        .query_one("SELECT email, name FROM subscriptions", &[])
-        .await
-        .expect("Failed to fetch saved subscriptions");
-
-    let saved_email: &str = saved.get("email");
-    let saved_name: &str = saved.get("name");
-
-    assert_eq!(saved_email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved_name, "le guin");
-}
-
-#[tokio::test]
-async fn subscribe_returns_a_400_when_data_is_missing() {
-    // Arrange
-    let app = spawn_app().await;
-    let client = reqwest::Client::new();
-    let test_cases = vec![
-        ("name=le%20guin", "missing the email"),
-        ("email=ursula_le_guin%40gmail.com", "missing the name"),
-        ("", "missing name and email"),
-    ];
-
-    // Act
-    for (invalid_body, error_message) in test_cases {
-        let response = client
-            .post(format!("{}/subscribe", app.address))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(invalid_body)
-            .send()
-            .await
-            .expect("Failed to execute request");
-
-        // Assert
-        assert_eq!(
-            400,
-            response.status().as_u16(),
-            "The API did not fail with '400 Bad Request' when the payload was {error_message}."
-        );
-    }
 }

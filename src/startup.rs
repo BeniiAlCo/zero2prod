@@ -1,20 +1,29 @@
-use axum::{routing::get, routing::post, routing::IntoMakeService, Router, Server};
-use deadpool_postgres::Pool;
-use hyper::server::conn::AddrIncoming;
-use std::net::TcpListener;
-
 use crate::routes::{health_check, subscribe};
+use axum::{routing, routing::get, routing::post};
+use hyper::{server::conn, Body, Request};
+use std::net::TcpListener;
+use tower_http::trace::TraceLayer;
+use uuid::Uuid;
 
 pub fn run(
     listener: TcpListener,
-    connection: Pool,
-) -> hyper::Result<Server<AddrIncoming, IntoMakeService<Router>>> {
-    let app = Router::new()
+    connection: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
+    let app = axum::Router::new()
         .route("/health_check", get(health_check))
         .route("/subscribe", post(subscribe))
-        .with_state(connection);
+        .with_state(connection)
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+                tracing::info_span!(
+                    "Request",
+                    request_id = %Uuid::new_v4().to_string(),
+                    request_path = %request.uri(),
+                )
+            }),
+        );
 
-    let server = Server::from_tcp(listener)?.serve(app.into_make_service());
+    let server = axum::Server::from_tcp(listener)?.serve(app.into_make_service());
 
     Ok(server)
 }

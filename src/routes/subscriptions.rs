@@ -5,11 +5,10 @@ use axum::{
 use serde::Deserialize;
 use time::OffsetDateTime;
 use tracing::instrument;
-use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
-pub struct Subscription {
+pub struct FormData {
     name: String,
     email: String,
 }
@@ -19,49 +18,62 @@ pub struct Subscription {
     skip_all,
     fields(
         request_id = %Uuid::new_v4(),
-        subscriber_email = %input.email, 
-        subscriber_name = %input.name), 
+        subscriber_email = %form.email, 
+        subscriber_name = %form.name), 
     level = "info"
 )]
 pub async fn subscribe(
-    State(connection): State<
+    State(pool): State<
         bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
     >,
-    Form(input): Form<Subscription>,
+    Form(form): Form<FormData>,
 ) -> StatusCode {
-    let connection_span =
-        tracing::span!(tracing::Level::INFO, "Getting connection to the database.");
-
-    let query_span = tracing::span!(
-        tracing::Level::INFO,
-        "Saving new subscriber details in the database."
-    );
-
-    let conn = connection
-        .get()
-        .in_current_span()
-        .instrument(connection_span)
-        .await
-        .expect("Failed to establish connection to database.");
-
-    match conn
-        .execute(
-            "INSERT INTO Subscriptions (id, email, name, subscribed_at) 
-        VALUES ($1, $2, $3, $4)",
-            &[
-                &Uuid::new_v4(),
-                &input.email,
-                &input.name,
-                &OffsetDateTime::now_utc(),
-            ],
-        )
-        .instrument(query_span)
-        .await
-    {
-        Ok(_) => StatusCode::OK,
-        Err(e) => {
-            tracing::error!("Failed to execute query: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+    match get_connection(&pool).await {
+        Ok(connection) => {
+            match insert_subscriber(&connection, &form).await {
+                Ok(_) => StatusCode::OK,
+                Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            }
         }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR
     }
+}
+
+#[instrument(
+    name = "Saving new subscriber details in the database",
+    skip_all,
+)]
+async fn insert_subscriber(
+    connection: &bb8::PooledConnection<'_, bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    form: &FormData,
+) -> Result<(), tokio_postgres::Error> {
+connection.execute(
+        "INSERT INTO Subscriptions (id, email, name, subscribed_at) 
+    VALUES ($1, $2, $3, $4)",
+        &[
+            &Uuid::new_v4(),
+            &form.email,
+            &form.name,
+            &OffsetDateTime::now_utc(),
+        ],
+    )
+    .await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        e
+    })?;
+
+    Ok(())        
+    
+}
+
+#[instrument(
+    name = "Establishing new connection to the database"
+    skip_all,
+)]
+async fn get_connection(pool: &bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>) 
+    -> Result<bb8::PooledConnection<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>, bb8::RunError<tokio_postgres::Error>> {
+    pool.get().await.map_err(|e| {
+        tracing::error!("Failed to get connection to database from connection pool: {:?}", e);
+        e
+    })
 }

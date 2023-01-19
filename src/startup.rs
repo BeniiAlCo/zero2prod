@@ -2,6 +2,8 @@ use crate::routes::{health_check, subscribe};
 use axum::{routing, routing::get, routing::post};
 use hyper::server::conn;
 use std::net::TcpListener;
+use tower_http::trace::{self, TraceLayer};
+use uuid::Uuid;
 
 pub fn run(
     listener: TcpListener,
@@ -10,14 +12,15 @@ pub fn run(
     let app = axum::Router::new()
         .route("/health_check", get(health_check))
         .route("/subscribe", post(subscribe))
-        .with_state(connection);
+        .with_state(connection)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    tracing::info_span!("Request", request_id = %Uuid::new_v4().to_string()),
+                )
+                .on_request(trace::DefaultOnRequest::new()),
+        );
 
-    tracing::info!(
-        "listening on {:?}",
-        listener
-            .local_addr()
-            .expect("Error extracting local address from TCP listener.")
-    );
     let server = axum::Server::from_tcp(listener)?.serve(app.into_make_service());
 
     Ok(server)

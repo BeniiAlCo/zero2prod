@@ -1,8 +1,8 @@
 use crate::routes::{health_check, subscribe};
 use axum::{routing, routing::get, routing::post};
-use hyper::server::conn;
+use hyper::{server::conn, Body, Request};
 use std::net::TcpListener;
-use tower_http::trace::{self, TraceLayer};
+use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
 pub fn run(
@@ -14,11 +14,13 @@ pub fn run(
         .route("/subscribe", post(subscribe))
         .with_state(connection)
         .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(
-                    tracing::info_span!("Request", request_id = %Uuid::new_v4().to_string()),
+            TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+                tracing::info_span!(
+                    "Request",
+                    request_id = %Uuid::new_v4().to_string(),
+                    request_path = %request.uri(),
                 )
-                .on_request(trace::DefaultOnRequest::new()),
+            }),
         );
 
     let server = axum::Server::from_tcp(listener)?.serve(app.into_make_service());

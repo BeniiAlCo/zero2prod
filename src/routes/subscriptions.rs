@@ -62,8 +62,7 @@ connection.execute(
         e
     })?;
 
-    Ok(())        
-    
+    Ok(())           
 }
 
 #[instrument(

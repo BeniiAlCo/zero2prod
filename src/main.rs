@@ -13,7 +13,10 @@ async fn main() -> hyper::Result<()> {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration.");
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
 
     let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
         configuration.database.connection_string().expose_secret(),
@@ -21,6 +24,7 @@ async fn main() -> hyper::Result<()> {
     )
     .unwrap();
     let pool = bb8::Pool::builder()
+        .connection_timeout(std::time::Duration::from_secs(2))
         .build(manager)
         .await
         .expect("Failed to establish connection to database.");

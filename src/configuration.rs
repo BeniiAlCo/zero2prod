@@ -1,9 +1,16 @@
 use secrecy::{ExposeSecret, Secret};
+use std::env;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
-    pub application_port: u16,
+    pub application: ApplicationSettings,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ApplicationSettings {
+    pub port: u16,
+    pub host: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -13,14 +20,6 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub database_name: String,
-}
-
-pub fn get_configuration() -> Result<Settings, config::ConfigError> {
-    let settings = config::Config::builder()
-        .add_source(config::File::with_name("configuration"))
-        .build()?;
-
-    settings.try_deserialize()
 }
 
 impl DatabaseSettings {
@@ -43,5 +42,50 @@ impl DatabaseSettings {
             self.host,
             self.port
         ))
+    }
+}
+
+pub fn get_configuration() -> Result<Settings, config::ConfigError> {
+    let environment: Environment = env::var("APP_ENVIRONMENT")
+        .unwrap_or_else(|_| "local".into())
+        .try_into()
+        .expect("Failed to parse APP_ENVIRONMENT.");
+
+    let settings = config::Config::builder()
+        .add_source(config::File::with_name("configuration/default"))
+        .add_source(config::File::with_name(&format!(
+            "configuration/{}",
+            environment.as_str()
+        )))
+        .build()?;
+
+    settings.try_deserialize()
+}
+
+pub enum Environment {
+    Local,
+    Production,
+}
+
+impl Environment {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Environment::Local => "local",
+            Environment::Production => "production",
+        }
+    }
+}
+
+impl TryFrom<String> for Environment {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.to_lowercase().as_str() {
+            "local" => Ok(Environment::Local),
+            "production" => Ok(Environment::Production),
+            other => Err(format!(
+                "{other} is not a supported environment. Use either `local' or `production'."
+            )),
+        }
     }
 }

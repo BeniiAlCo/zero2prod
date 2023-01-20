@@ -13,7 +13,7 @@ async fn main() -> hyper::Result<()> {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration.");
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!("0.0.0.0:{}", configuration.application_port);
 
     let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
         configuration.database.connection_string().expose_secret(),

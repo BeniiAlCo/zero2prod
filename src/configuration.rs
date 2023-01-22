@@ -15,9 +15,9 @@ pub struct ApplicationSettings {
 
 #[derive(serde::Deserialize)]
 pub struct DatabaseSettings {
+    pub port: u16,
     pub username: String,
     pub password: Secret<String>,
-    pub port: u16,
     pub host: String,
     pub database_name: String,
 }
@@ -57,6 +57,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
             "configuration/{}",
             environment.as_str()
         )))
+        .add_source(config::Environment::with_prefix("app").separator("__"))
         .build()?;
 
     settings.try_deserialize()

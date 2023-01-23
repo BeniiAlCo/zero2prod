@@ -31,7 +31,7 @@ jobs:
           - 6379:6379
     env:
       SQLX_VERSION: 0.6.2
-      SQLX_FEATURES: "postgres,rustls"
+      SQLX_FEATURES: "postgres,native-tls"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -70,6 +70,7 @@ jobs:
             sqlx-cli
             --force
             --version=${{ env.SQLX_VERSION }}
+            --no-default-features
             --features ${{ env.SQLX_FEATURES }}
             --locked
       - name: Migrate database
@@ -114,7 +115,7 @@ jobs:
           - 5432:5432
     env:
       SQLX_VERSION: 0.6.2
-      SQLX_FEATURES: "postgres,rustls"
+      SQLX_FEATURES: "postgres,native-tls"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -143,6 +144,7 @@ jobs:
             sqlx-cli
             --force
             --version=${{ env.SQLX_VERSION }}
+            --no-default-features
             --features ${{ env.SQLX_FEATURES }}
             --locked
       - name: Migrate database

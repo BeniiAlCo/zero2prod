@@ -7,11 +7,8 @@ if ! [ -x "$(command -v psql)" ]; then
 	exit 1
 fi 
 
-if ! [ -x "$(command -v refinery)" ]; then 
+if ! [ -x "$(command -v sqlx)" ]; then 
 	echo >&2 "Error: sqlx is not installed."
-	echo >&2 "Use:"
-	echo >&2 "	cargo install --version=0.8.7 refinery_cli"
-	echo >&2 "to install it."
 	exit 1
 fi
 

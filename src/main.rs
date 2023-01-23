@@ -1,6 +1,4 @@
-use secrecy::ExposeSecret;
 use std::net::TcpListener;
-use tokio_postgres::NoTls;
 use zero2prod::{
     configuration::get_configuration,
     startup::run,
@@ -18,14 +16,9 @@ async fn main() -> hyper::Result<()> {
         configuration.application.host, configuration.application.port
     );
 
-    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        configuration.database.connection_string().expose_secret(),
-        NoTls,
-    )
-    .unwrap();
     let pool = bb8::Pool::builder()
         .connection_timeout(std::time::Duration::from_secs(2))
-        .build(manager)
+        .build(configuration.database.with_db())
         .await
         .expect("Failed to establish connection to database.");
 

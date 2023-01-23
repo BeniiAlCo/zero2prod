@@ -1,10 +1,5 @@
-use native_tls::TlsConnector;
-use postgres_native_tls::MakeTlsConnector;
 use secrecy::{ExposeSecret, Secret};
 use std::env;
-
-pub type DbConnectionManager =
-    bb8_postgres::PostgresConnectionManager<postgres_native_tls::MakeTlsConnector>;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
@@ -25,35 +20,21 @@ pub struct DatabaseSettings {
     pub password: Secret<String>,
     pub host: String,
     pub database_name: String,
-    pub require_ssl: bool,
 }
 
 impl DatabaseSettings {
-    pub fn with_db(&self) -> DbConnectionManager {
-        let ssl_mode = if self.require_ssl {
-            "require"
-        } else {
-            "prefer"
-        };
-
-        let builder = TlsConnector::builder().build().unwrap();
-        let connector = MakeTlsConnector::new(builder);
-
-        bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-            format!(
-                "user={} password={} host={} port={} dbname={} sslmode={}",
-                self.username,
-                self.password.expose_secret(),
-                self.host,
-                self.port,
-                self.database_name,
-                ssl_mode,
-            ),
-            connector,
-        )
-        .expect("Failed to establish connection to database.")
+    pub fn connection_string(&self) -> Secret<String> {
+        Secret::new(format!(
+            "user={} password={} host={} port={} dbname={}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.database_name
+        ))
     }
 
+<<<<<<< HEAD
     pub fn without_db(&self) -> DbConnectionManager {
         let ssl_mode = if self.require_ssl {
             "require"
@@ -76,6 +57,16 @@ impl DatabaseSettings {
             connector,
         )
         .expect("Failed to establish connection to database.")
+=======
+    pub fn connection_string_without_db(&self) -> Secret<String> {
+        Secret::new(format!(
+            "user={} password={} host={} port={}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port
+        ))
+>>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
     }
 
     pub fn connection_string(&self) -> String {

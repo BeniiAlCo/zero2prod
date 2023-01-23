@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 use sqlx::{Connection, PgConnection};
+=======
+use secrecy::ExposeSecret;
+>>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
 use std::sync::Once;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -7,8 +11,6 @@ use zero2prod::{
 };
 
 pub static TRACING: Once = Once::new();
-pub type DbPool =
-    bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_native_tls::MakeTlsConnector>>;
 
 pub fn tracing_init() {
     TRACING.call_once(|| {
@@ -26,7 +28,7 @@ pub fn tracing_init() {
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: DbPool,
+    pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 }
 
 pub async fn spawn_app() -> TestApp {
@@ -49,16 +51,33 @@ pub async fn spawn_app() -> TestApp {
     }
 }
 
+<<<<<<< HEAD
 async fn configure_database(config: &DatabaseSettings) -> DbPool {
-    {
-        let pool = bb8::Pool::builder()
-            .build(config.without_db())
-            .await
-            .expect("Failed to create connection pool.");
+=======
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
 
-        pool.dedicated_connection()
-            .await
-            .unwrap()
+async fn configure_database(
+    config: &DatabaseSettings,
+) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
+>>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
+    {
+        let (client, connection) = tokio_postgres::connect(
+            config.connection_string_without_db().expose_secret(),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .expect("Failed to establish connection to unnamed database.");
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        client
             .execute(
                 format!(r#"CREATE DATABASE "{}";"#, &config.database_name).as_str(),
                 &[],
@@ -80,8 +99,35 @@ async fn configure_database(config: &DatabaseSettings) -> DbPool {
             .unwrap();
     }
 
+    {
+        let (mut client, connection) = tokio_postgres::connect(
+            config.connection_string().expose_secret(),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .expect("Failed to establish connection to named database.");
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        embedded::migrations::runner()
+            .run_async(&mut client)
+            .await
+            .unwrap();
+
+        println!("DB migrations finished!");
+    }
+
+    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
+        config.connection_string().expose_secret(),
+        tokio_postgres::NoTls,
+    )
+    .expect("Failed to establish connection to database.");
     let pool = bb8::Pool::builder()
-        .build(config.with_db())
+        .build(manager)
         .await
         .expect("Failed to create connection pool.");
 

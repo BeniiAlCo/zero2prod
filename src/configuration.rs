@@ -34,57 +34,14 @@ impl DatabaseSettings {
         ))
     }
 
-<<<<<<< HEAD
-    pub fn without_db(&self) -> DbConnectionManager {
-        let ssl_mode = if self.require_ssl {
-            "require"
-        } else {
-            "prefer"
-        };
-
-        let builder = TlsConnector::builder().build().unwrap();
-        let connector = MakeTlsConnector::new(builder);
-
-        bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-            format!(
-                "user={} password={} host={} port={} sslmode={}",
-                self.username,
-                self.password.expose_secret(),
-                self.host,
-                self.port,
-                ssl_mode,
-            ),
-            connector,
-        )
-        .expect("Failed to establish connection to database.")
-=======
     pub fn connection_string_without_db(&self) -> Secret<String> {
         Secret::new(format!(
             "user={} password={} host={} port={}",
             self.username,
             self.password.expose_secret(),
             self.host,
-            self.port
-        ))
->>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
-    }
-
-    pub fn connection_string(&self) -> String {
-        let ssl_mode = if self.require_ssl {
-            "require"
-        } else {
-            "prefer"
-        };
-
-        format!(
-            "postgres://{}:{}@{}:{}/{}?sslmode={}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
             self.port,
-            self.database_name,
-            ssl_mode,
-        )
+        ))
     }
 }
 

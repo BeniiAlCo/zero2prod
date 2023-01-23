@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-use sqlx::{Connection, PgConnection};
-=======
 use secrecy::ExposeSecret;
->>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
 use std::sync::Once;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -51,9 +47,6 @@ pub async fn spawn_app() -> TestApp {
     }
 }
 
-<<<<<<< HEAD
-async fn configure_database(config: &DatabaseSettings) -> DbPool {
-=======
 mod embedded {
     use refinery::embed_migrations;
     embed_migrations!("migrations");
@@ -62,7 +55,6 @@ mod embedded {
 async fn configure_database(
     config: &DatabaseSettings,
 ) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
->>>>>>> parent of 6a005f0 (added initial framework for ssl support.)
     {
         let (client, connection) = tokio_postgres::connect(
             config.connection_string_without_db().expose_secret(),
@@ -84,19 +76,6 @@ async fn configure_database(
             )
             .await
             .expect("Failed to create a database.");
-    }
-
-    // TODO: Replace with refinery migrate when the pull request for ssl functionality (#260) is
-    // accepted.
-    {
-        sqlx::migrate!("./migrations")
-            .run(
-                &mut PgConnection::connect(dbg!(&config.connection_string()))
-                    .await
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
     }
 
     {

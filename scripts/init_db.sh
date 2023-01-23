@@ -7,7 +7,7 @@ if ! [ -x "$(command -v psql)" ]; then
 	exit 1
 fi 
 
-if ! [ -x "$(command -v sqlx)" ]; then 
+if ! [ -x "$(command -v refinery)" ]; then 
 	echo >&2 "Error: sqlx is not installed."
 	exit 1
 fi
@@ -35,8 +35,7 @@ done
 
 >&2 echo "Postgres is up and running on port ${DB_PORT} - running migrations now!"
 
-export DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
-sqlx database create
-sqlx migrate run
+export DB_URI=postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
+refinery migrate -e DB_URI -p ./migrations
 
 >&2 echo "Postgres has been migrated, ready to go!"

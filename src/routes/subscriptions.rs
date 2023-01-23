@@ -7,6 +7,8 @@ use time::OffsetDateTime;
 use tracing::instrument;
 use uuid::Uuid;
 
+use crate::startup::DbPool;
+
 #[derive(Debug, Deserialize)]
 pub struct FormData {
     name: String,
@@ -21,10 +23,7 @@ pub struct FormData {
         subscriber_name = %form.name),
     level = "info"
 )]
-pub async fn subscribe(
-    State(pool): State<bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>>,
-    Form(form): Form<FormData>,
-) -> StatusCode {
+pub async fn subscribe(State(pool): State<DbPool>, Form(form): Form<FormData>) -> StatusCode {
     match get_connection(&pool).await {
         Ok(connection) => match insert_subscriber(&connection, &form).await {
             Ok(_) => StatusCode::OK,
@@ -38,7 +37,7 @@ pub async fn subscribe(
 async fn insert_subscriber(
     connection: &bb8::PooledConnection<
         '_,
-        bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>,
+        bb8_postgres::PostgresConnectionManager<postgres_native_tls::MakeTlsConnector>,
     >,
     form: &FormData,
 ) -> Result<(), tokio_postgres::Error> {
@@ -67,9 +66,11 @@ async fn insert_subscriber(
     skip_all,
 )]
 async fn get_connection(
-    pool: &bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    pool: &DbPool,
 ) -> Result<
-    bb8::PooledConnection<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    bb8::PooledConnection<
+        bb8_postgres::PostgresConnectionManager<postgres_native_tls::MakeTlsConnector>,
+    >,
     bb8::RunError<tokio_postgres::Error>,
 > {
     pool.get().await.map_err(|e| {

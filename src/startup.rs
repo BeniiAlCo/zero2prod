@@ -5,9 +5,12 @@ use std::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+pub type DbPool =
+    bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_native_tls::MakeTlsConnector>>;
+
 pub fn run(
     listener: TcpListener,
-    connection: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    connection: DbPool,
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
     let app = axum::Router::new()
         .route("/health_check", get(health_check))

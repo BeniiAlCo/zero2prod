@@ -60,7 +60,6 @@ impl DatabaseSettings {
         } else {
             "prefer"
         };
-        dbg!(ssl_mode);
 
         let builder = TlsConnector::builder().build().unwrap();
         let connector = MakeTlsConnector::new(builder);
@@ -77,6 +76,24 @@ impl DatabaseSettings {
             connector,
         )
         .expect("Failed to establish connection to database.")
+    }
+
+    pub fn connection_string(&self) -> String {
+        let ssl_mode = if self.require_ssl {
+            "require"
+        } else {
+            "prefer"
+        };
+
+        format!(
+            "postgres://{}:{}@{}:{}/{}?sslmode={}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.database_name,
+            ssl_mode,
+        )
     }
 }
 

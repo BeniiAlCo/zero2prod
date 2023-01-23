@@ -1,3 +1,4 @@
+use sqlx::{Connection, PgConnection};
 use std::sync::Once;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -48,11 +49,6 @@ pub async fn spawn_app() -> TestApp {
     }
 }
 
-mod embedded {
-    use refinery::embed_migrations;
-    embed_migrations!("migrations");
-}
-
 async fn configure_database(config: &DatabaseSettings) -> DbPool {
     {
         let pool = bb8::Pool::builder()
@@ -68,23 +64,26 @@ async fn configure_database(config: &DatabaseSettings) -> DbPool {
                 &[],
             )
             .await
-            .expect("Failetd to create a database.");
+            .expect("Failed to create a database.");
+    }
+
+    // TODO: Replace with refinery migrate when the pull request for ssl functionality (#260) is
+    // accepted.
+    {
+        sqlx::migrate!("./migrations")
+            .run(
+                &mut PgConnection::connect(dbg!(&config.connection_string()))
+                    .await
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
     }
 
     let pool = bb8::Pool::builder()
         .build(config.with_db())
         .await
         .expect("Failed to create connection pool.");
-
-    embedded::migrations::runner()
-        .run_async(
-            &mut pool
-                .dedicated_connection()
-                .await
-                .expect("Failed to get a dedicated connection from the pool."),
-        )
-        .await
-        .unwrap();
 
     pool
 }

@@ -7,7 +7,9 @@ use uuid::Uuid;
 
 pub fn run(
     listener: TcpListener,
-    connection: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    connection: bb8::Pool<
+        bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>,
+    >,
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
     let app = axum::Router::new()
         .route("/health_check", get(health_check))

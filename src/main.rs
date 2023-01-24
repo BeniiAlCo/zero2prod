@@ -1,6 +1,6 @@
-use secrecy::ExposeSecret;
+use openssl::ssl::{SslConnector, SslMethod};
+use postgres_openssl::MakeTlsConnector;
 use std::net::TcpListener;
-use tokio_postgres::NoTls;
 use zero2prod::{
     configuration::get_configuration,
     startup::run,
@@ -14,12 +14,14 @@ async fn main() -> hyper::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        configuration.database.connection_string().expose_secret(),
-        NoTls,
-    )
-    .unwrap();
+    let builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    let connector = MakeTlsConnector::new(builder.build());
+
+    let manager =
+        bb8_postgres::PostgresConnectionManager::new(configuration.database.with_db(), connector);
+
     let pool = bb8::Pool::builder()
+        .connection_timeout(std::time::Duration::from_secs(10))
         .build(manager)
         .await
         .expect("Failed to establish connection to database.");

@@ -1,4 +1,3 @@
-use secrecy::ExposeSecret;
 use std::sync::Once;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -24,7 +23,8 @@ pub fn tracing_init() {
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    pub db_pool:
+        bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>>,
 }
 
 pub async fn spawn_app() -> TestApp {
@@ -54,14 +54,13 @@ mod embedded {
 
 async fn configure_database(
     config: &DatabaseSettings,
-) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
+) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>> {
     {
-        let (client, connection) = tokio_postgres::connect(
-            config.connection_string_without_db().expose_secret(),
-            tokio_postgres::NoTls,
-        )
-        .await
-        .expect("Failed to establish connection to unnamed database.");
+        let (client, connection) = config
+            .without_db()
+            .connect(tokio_postgres::NoTls)
+            .await
+            .expect("Failed to establish connection to unnamed database.");
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -78,37 +77,20 @@ async fn configure_database(
             .expect("Failed to create a database.");
     }
 
-    {
-        let (mut client, connection) = tokio_postgres::connect(
-            config.connection_string().expose_secret(),
-            tokio_postgres::NoTls,
-        )
-        .await
-        .expect("Failed to establish connection to named database.");
+    let builder = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
+    let connector = postgres_openssl::MakeTlsConnector::new(builder.build());
 
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+    let manager = bb8_postgres::PostgresConnectionManager::new(config.with_db(), connector);
 
-        embedded::migrations::runner()
-            .run_async(&mut client)
-            .await
-            .unwrap();
-
-        println!("DB migrations finished!");
-    }
-
-    let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
-        config.connection_string().expose_secret(),
-        tokio_postgres::NoTls,
-    )
-    .expect("Failed to establish connection to database.");
     let pool = bb8::Pool::builder()
         .build(manager)
         .await
         .expect("Failed to create connection pool.");
+
+    embedded::migrations::runner()
+        .run_async(&mut pool.dedicated_connection().await.unwrap())
+        .await
+        .unwrap();
 
     pool
 }

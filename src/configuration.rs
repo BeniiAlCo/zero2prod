@@ -20,28 +20,28 @@ pub struct DatabaseSettings {
     pub password: Secret<String>,
     pub host: String,
     pub database_name: String,
+    pub require_ssl: bool,
 }
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "user={} password={} host={} port={} dbname={}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-            self.database_name
-        ))
+    pub fn without_db(&self) -> tokio_postgres::Config {
+        let ssl_mode = if self.require_ssl {
+            tokio_postgres::config::SslMode::Require
+        } else {
+            tokio_postgres::config::SslMode::Prefer
+        };
+
+        tokio_postgres::Config::new()
+            .host(&self.host)
+            .user(&self.username)
+            .password(self.password.expose_secret())
+            .port(self.port)
+            .ssl_mode(ssl_mode)
+            .to_owned()
     }
 
-    pub fn connection_string_without_db(&self) -> Secret<String> {
-        Secret::new(format!(
-            "user={} password={} host={} port={}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-        ))
+    pub fn with_db(&self) -> tokio_postgres::Config {
+        self.without_db().dbname(&self.database_name).to_owned()
     }
 }
 
@@ -57,7 +57,11 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
             "configuration/{}",
             environment.as_str()
         )))
-        .add_source(config::Environment::with_prefix("app").separator("__"))
+        .add_source(
+            config::Environment::with_prefix("app")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()?;
 
     settings.try_deserialize()

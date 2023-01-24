@@ -24,7 +24,6 @@ async fn main() -> hyper::Result<()> {
     )
     .unwrap();
     let pool = bb8::Pool::builder()
-        .connection_timeout(std::time::Duration::from_secs(2))
         .build(manager)
         .await
         .expect("Failed to establish connection to database.");
@@ -34,18 +33,5 @@ async fn main() -> hyper::Result<()> {
 
     println!("{:?}", &listener);
 
-    let x = run(listener.try_clone().unwrap(), pool)?.await;
-
-    let client = reqwest::Client::new();
-
-    let response = client
-        .get(format!("{}/health_check", listener.local_addr().unwrap()))
-        .send()
-        .await
-        .expect("Failed to execute request.");
-
-    // Assert
-    assert!(response.status().is_success());
-    assert_eq!(Some(0), response.content_length());
-    x
+    run(listener, pool)?.await
 }

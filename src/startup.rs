@@ -11,7 +11,7 @@ pub fn run(
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
     let app = axum::Router::new()
         .route("/health_check", get(health_check))
-        .route("/subscribe", post(subscribe))
+        //.route("/subscribe", post(subscribe))
         .with_state(connection)
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {

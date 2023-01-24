@@ -2856,6 +2856,7 @@ dependencies = [
  "config",
  "hyper",
  "openssl",
+ "openssl-sys",
  "postgres-openssl",
  "refinery",
  "reqwest",

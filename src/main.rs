@@ -32,5 +32,7 @@ async fn main() -> hyper::Result<()> {
     let listener =
         TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));
 
+    println!("{:?}", listener);
+
     run(listener, pool)?.await
 }

@@ -1,5 +1,6 @@
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
+use secrecy::ExposeSecret;
 use std::net::TcpListener;
 use zero2prod::{
     configuration::get_configuration,
@@ -14,7 +15,12 @@ async fn main() -> hyper::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    if !configuration.database.ca_cert.expose_secret().is_empty() {
+        builder
+            .set_ca_file(configuration.database.ca_cert.expose_secret())
+            .unwrap();
+    }
     let connector = MakeTlsConnector::new(builder.build());
 
     let manager =

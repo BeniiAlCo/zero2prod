@@ -18,25 +18,6 @@ async fn main() -> hyper::Result<()> {
     builder.set_verify(SslVerifyMode::NONE);
     let connector = MakeTlsConnector::new(builder.build());
 
-    {
-        let (client, connection) = configuration
-            .database
-            .with_db()
-            .connect(connector.to_owned())
-            .await
-            .unwrap();
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        let rows = client.query("SELECT $1::TEXT", &[&"name"]).await.unwrap();
-        let value: &str = rows[0].get(0);
-        dbg!(value);
-    }
-
     let manager =
         bb8_postgres::PostgresConnectionManager::new(configuration.database.with_db(), connector);
 

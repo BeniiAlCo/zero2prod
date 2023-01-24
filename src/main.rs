@@ -1,5 +1,5 @@
 //use secrecy::ExposeSecret;
-use std::net::TcpListener;
+//use std::net::TcpListener;
 //use tokio_postgres::NoTls;
 use axum::routing::get;
 use hyper::Body;
@@ -10,13 +10,13 @@ use uuid::Uuid;
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 #[tokio::main]
-async fn main() -> hyper::Result<()> {
+async fn main() {
     let subscriber = get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
     //let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let address = "0.0.0.0:8000".to_string();
+    //let address = "0.0.0.0:8000".to_string();
 
     //let manager = bb8_postgres::PostgresConnectionManager::new_from_stringlike(
     //    configuration.database.connection_string().expose_secret(),
@@ -28,10 +28,10 @@ async fn main() -> hyper::Result<()> {
     //   .await
     //   .expect("Failed to establish connection to database.");
 
-    let listener =
-        TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));
+    //let listener =
+    //    TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));
 
-    println!("{:?}", &listener);
+    //println!("{:?}", &listener);
 
     let app = axum::Router::new()
         .route("/", get(|| async { "hi" }))
@@ -48,16 +48,17 @@ async fn main() -> hyper::Result<()> {
             }),
         );
 
-    tracing::info!(
-        "listening on {}",
-        listener
-            .local_addr()
-            .expect("Error parsing server address.")
-    );
+    //tracing::info!(
+    //    "listening on {}",
+    //    listener
+    //        .local_addr()
+    //        .expect("Error parsing server address.")
+    //);
 
-    axum::Server::from_tcp(listener.try_clone().unwrap())?
+    axum::Server::bind(&"0.0.0.0:8000".parse().unwrap())
         .serve(app.into_make_service())
         .await
+        .unwrap();
 
     //run(listener, pool)?.await
 }

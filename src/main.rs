@@ -2,17 +2,22 @@
 //use std::net::TcpListener;
 //use tokio_postgres::NoTls;
 use axum::routing::get;
-use hyper::Body;
-use hyper::Request;
+//use hyper::Body;
+//use hyper::Request;
 use hyper::StatusCode;
-use tower_http::trace::TraceLayer;
-use uuid::Uuid;
-use zero2prod::telemetry::{get_subscriber, init_subscriber};
+//use tower_http::trace::TraceLayer;
+use tracing_subscriber::fmt;
+//use uuid::Uuid;
+//use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 #[tokio::main]
 async fn main() {
-    let subscriber = get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
-    init_subscriber(subscriber);
+    //let subscriber = get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
+    //init_subscriber(subscriber);
+
+    tracing_subscriber::fmt()
+        .event_format(fmt::format().with_level(false).with_target(false).compact())
+        .init();
 
     //let configuration = get_configuration().expect("Failed to read configuration.");
 
@@ -35,18 +40,24 @@ async fn main() {
 
     let app = axum::Router::new()
         .route("/", get(|| async { "hi" }))
-        .route("/health_check", get(|| async { StatusCode::OK }))
-        //.route("/subscribe", post(subscribe))
-        //.with_state(connection)
-        .layer(
-            TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
-                tracing::info_span!(
-                    "Request",
-                    request_id = %Uuid::new_v4().to_string(),
-                    request_path = %request.uri(),
-                )
+        .route(
+            "/health_check",
+            get(|| async {
+                tracing::info!("health");
+                StatusCode::OK
             }),
         );
+    //.route("/subscribe", post(subscribe))
+    //.with_state(connection)
+    //.layer(
+    //    TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+    //        tracing::info_span!(
+    //            "Request",
+    //            request_id = %Uuid::new_v4().to_string(),
+    //            request_path = %request.uri(),
+    //        )
+    //    }),
+    //);
 
     //tracing::info!(
     //    "listening on {}",

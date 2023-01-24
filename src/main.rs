@@ -32,7 +32,20 @@ async fn main() -> hyper::Result<()> {
     let listener =
         TcpListener::bind(address).unwrap_or_else(|port| panic!("Failed to bind to port {port}"));
 
-    println!("{:?}", listener);
+    println!("{:?}", &listener);
 
-    run(listener, pool)?.await
+    let x = run(listener.try_clone().unwrap(), pool)?.await;
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!("{}/health_check", listener.local_addr().unwrap()))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Assert
+    assert!(response.status().is_success());
+    assert_eq!(Some(0), response.content_length());
+    x
 }

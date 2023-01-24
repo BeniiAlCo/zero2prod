@@ -5,7 +5,7 @@ use std::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
-pub async fn run(
+pub fn run(
     listener: TcpListener,
     connection: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
 ) -> hyper::Result<axum::Server<conn::AddrIncoming, routing::IntoMakeService<axum::Router>>> {
@@ -31,18 +31,6 @@ pub async fn run(
     );
     let server =
         axum::Server::from_tcp(listener.try_clone().unwrap())?.serve(app.into_make_service());
-
-    let client = reqwest::Client::new();
-
-    let response = client
-        .get(format!("{}/health_check", listener.local_addr().unwrap()))
-        .send()
-        .await
-        .expect("Failed to execute request.");
-
-    // Assert
-    assert!(response.status().is_success());
-    assert_eq!(Some(0), response.content_length());
 
     Ok(server)
 }

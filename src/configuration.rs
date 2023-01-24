@@ -31,6 +31,12 @@ impl DatabaseSettings {
             tokio_postgres::config::SslMode::Prefer
         };
 
+        dbg!(&self.host);
+        dbg!(&self.username);
+        dbg!(&self.port);
+        dbg!(&self.password.expose_secret());
+        dbg!(&ssl_mode);
+
         tokio_postgres::Config::new()
             .host(&self.host)
             .user(&self.username)

@@ -22,7 +22,9 @@ pub struct FormData {
     level = "info"
 )]
 pub async fn subscribe(
-    State(pool): State<bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>>,
+    State(pool): State<
+        bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>>,
+    >,
     Form(form): Form<FormData>,
 ) -> StatusCode {
     match get_connection(&pool).await {
@@ -38,7 +40,7 @@ pub async fn subscribe(
 async fn insert_subscriber(
     connection: &bb8::PooledConnection<
         '_,
-        bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>,
+        bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>,
     >,
     form: &FormData,
 ) -> Result<(), tokio_postgres::Error> {
@@ -67,9 +69,11 @@ async fn insert_subscriber(
     skip_all,
 )]
 async fn get_connection(
-    pool: &bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    pool: &bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>>,
 ) -> Result<
-    bb8::PooledConnection<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    bb8::PooledConnection<
+        bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>,
+    >,
     bb8::RunError<tokio_postgres::Error>,
 > {
     pool.get().await.map_err(|e| {

@@ -23,7 +23,8 @@ pub fn tracing_init() {
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>>,
+    pub db_pool:
+        bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>>,
 }
 
 pub async fn spawn_app() -> TestApp {
@@ -53,7 +54,7 @@ mod embedded {
 
 async fn configure_database(
     config: &DatabaseSettings,
-) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<tokio_postgres::NoTls>> {
+) -> bb8::Pool<bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>> {
     {
         let (client, connection) = config
             .without_db()
@@ -76,8 +77,10 @@ async fn configure_database(
             .expect("Failed to create a database.");
     }
 
-    let manager =
-        bb8_postgres::PostgresConnectionManager::new(config.with_db(), tokio_postgres::NoTls);
+    let builder = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
+    let connector = postgres_openssl::MakeTlsConnector::new(builder.build());
+
+    let manager = bb8_postgres::PostgresConnectionManager::new(config.with_db(), connector);
 
     let pool = bb8::Pool::builder()
         .build(manager)

@@ -1,6 +1,5 @@
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
-use secrecy::ExposeSecret;
 use std::net::TcpListener;
 use zero2prod::{
     configuration::get_configuration,
@@ -15,13 +14,24 @@ async fn main() -> hyper::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    if !configuration.database.ca_cert.expose_secret().is_empty() {
-        builder
-            .set_ca_file(configuration.database.ca_cert.expose_secret())
-            .unwrap();
-    }
-    let connector = MakeTlsConnector::new(builder.build());
+    let connector = MakeTlsConnector::new(SslConnector::builder(SslMethod::tls()).unwrap().build());
+
+    let (client, connection) = configuration
+        .database
+        .with_db()
+        .connect(connector.to_owned())
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    let rows = client.query("SELECT $1::TEXT", &[&"name"]).await.unwrap();
+    let value: &str = rows[0].get(0);
+    dbg!(value);
 
     let manager =
         bb8_postgres::PostgresConnectionManager::new(configuration.database.with_db(), connector);

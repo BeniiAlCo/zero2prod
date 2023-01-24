@@ -21,14 +21,9 @@ pub struct DatabaseSettings {
     pub host: String,
     pub database_name: String,
     pub require_ssl: bool,
-    pub ca_cert: Secret<String>,
 }
 
 impl DatabaseSettings {
-    pub fn get_ca_cert(&self) -> &Secret<String> {
-        &self.ca_cert
-    }
-
     pub fn without_db(&self) -> tokio_postgres::Config {
         let ssl_mode = if self.require_ssl {
             tokio_postgres::config::SslMode::Require

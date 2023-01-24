@@ -29,8 +29,7 @@ pub fn run(
             .local_addr()
             .expect("Error parsing server address.")
     );
-    let server =
-        axum::Server::from_tcp(listener.try_clone().unwrap())?.serve(app.into_make_service());
+    let server = axum::Server::from_tcp(listener)?.serve(app.into_make_service());
 
     Ok(server)
 }

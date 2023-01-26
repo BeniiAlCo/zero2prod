@@ -1,3 +1,4 @@
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use axum::{
     extract::{Form, State},
     http::StatusCode,
@@ -11,6 +12,16 @@ use uuid::Uuid;
 pub struct FormData {
     name: String,
     email: String,
+}
+
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(Self { email, name })
+    }
 }
 
 #[instrument(
@@ -27,8 +38,13 @@ pub async fn subscribe(
     >,
     Form(form): Form<FormData>,
 ) -> StatusCode {
+    let new_subscriber = match form.try_into() {
+        Ok(valid_subscriber) => valid_subscriber,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
     match get_connection(&pool).await {
-        Ok(connection) => match insert_subscriber(&connection, &form).await {
+        Ok(connection) => match insert_subscriber(&connection, &new_subscriber).await {
             Ok(_) => StatusCode::OK,
             Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
         },
@@ -42,7 +58,7 @@ async fn insert_subscriber(
         '_,
         bb8_postgres::PostgresConnectionManager<postgres_openssl::MakeTlsConnector>,
     >,
-    form: &FormData,
+    new_subscriber: &NewSubscriber,
 ) -> Result<(), tokio_postgres::Error> {
     connection
         .execute(
@@ -50,8 +66,8 @@ async fn insert_subscriber(
     VALUES ($1, $2, $3, $4)",
             &[
                 &Uuid::new_v4(),
-                &form.email,
-                &form.name,
+                &new_subscriber.email.as_ref(),
+                &new_subscriber.name.as_ref(),
                 &OffsetDateTime::now_utc(),
             ],
         )

@@ -1,4 +1,4 @@
-use crate::domain::{NewSubscriber, SubscriberName};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use axum::{
     extract::{Form, State},
     http::StatusCode,
@@ -28,12 +28,12 @@ pub async fn subscribe(
     >,
     Form(form): Form<FormData>,
 ) -> StatusCode {
-    match SubscriberName::parse(form.name) {
-        Ok(name) => {
-            let new_subscriber = NewSubscriber {
-                email: form.email,
-                name,
-            };
+    match (
+        SubscriberName::parse(form.name),
+        SubscriberEmail::parse(form.email),
+    ) {
+        (Ok(name), Ok(email)) => {
+            let new_subscriber = NewSubscriber { email, name };
 
             match get_connection(&pool).await {
                 Ok(connection) => match insert_subscriber(&connection, &new_subscriber).await {
@@ -43,7 +43,7 @@ pub async fn subscribe(
                 Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
             }
         }
-        Err(_) => StatusCode::BAD_REQUEST,
+        _ => StatusCode::BAD_REQUEST,
     }
 }
 
@@ -61,7 +61,7 @@ async fn insert_subscriber(
     VALUES ($1, $2, $3, $4)",
             &[
                 &Uuid::new_v4(),
-                &new_subscriber.email,
+                &new_subscriber.email.as_ref(),
                 &new_subscriber.name.as_ref(),
                 &OffsetDateTime::now_utc(),
             ],

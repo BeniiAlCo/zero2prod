@@ -14,6 +14,16 @@ pub struct FormData {
     email: String,
 }
 
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(Self { email, name })
+    }
+}
+
 #[instrument(
     name = "Adding a new subscriber",
     skip_all,
@@ -28,22 +38,17 @@ pub async fn subscribe(
     >,
     Form(form): Form<FormData>,
 ) -> StatusCode {
-    match (
-        SubscriberName::parse(form.name),
-        SubscriberEmail::parse(form.email),
-    ) {
-        (Ok(name), Ok(email)) => {
-            let new_subscriber = NewSubscriber { email, name };
+    let new_subscriber = match form.try_into() {
+        Ok(valid_subscriber) => valid_subscriber,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
 
-            match get_connection(&pool).await {
-                Ok(connection) => match insert_subscriber(&connection, &new_subscriber).await {
-                    Ok(_) => StatusCode::OK,
-                    Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                },
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        }
-        _ => StatusCode::BAD_REQUEST,
+    match get_connection(&pool).await {
+        Ok(connection) => match insert_subscriber(&connection, &new_subscriber).await {
+            Ok(_) => StatusCode::OK,
+            Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        },
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
